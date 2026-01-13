@@ -10,24 +10,23 @@ import { getBotMove } from './engine/bot';
 import { SUITS } from './engine/cards';
 import { determineTrickWinner } from './engine/scoring';
 import { evaluateContract } from './engine/contracts';
+import { saveGame, loadGame, clearGame } from './engine/serialize';
 import { 
   DICTIONARY, 
-  JSON_RULESET 
 } from './constants';
-import { runTests } from './tests/all.test';
 
-// --- Sub-components ---
+// --- Components ---
 
 const CardVisual: React.FC<{ 
   card: Card; 
   onClick?: () => void; 
   disabled?: boolean; 
   isTrump?: boolean;
-  highlighted?: boolean;
   isWinner?: boolean;
+  highlighted?: boolean;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   className?: string;
-}> = ({ card, onClick, disabled, isTrump, highlighted, isWinner, size = 'md', className = '' }) => {
+}> = ({ card, onClick, disabled, isTrump, isWinner, highlighted, size = 'md', className = '' }) => {
   const getSuitSymbol = (s: Suit) => {
     switch(s) {
       case 'Srdce': return '♥';
@@ -38,51 +37,45 @@ const CardVisual: React.FC<{
     }
   };
   const isRed = card.suit === 'Srdce' || card.suit === 'Gule';
-  const colorClass = isRed ? 'text-red-600' : 'text-slate-900';
   
   const sizeClasses = {
-    xs: 'w-8 h-12 text-[9px]',
-    sm: 'w-10 h-14 md:w-12 md:h-18 text-[10px] md:text-xs',
-    md: 'w-12 h-18 md:w-16 md:h-24 text-xs md:text-lg',
-    lg: 'w-20 h-28 md:w-24 md:h-36 text-xl md:text-2xl'
+    xs: 'w-10 h-14 text-xs',
+    sm: 'w-14 h-20 text-sm',
+    md: 'w-16 h-24 md:w-20 md:h-28 text-base md:text-xl',
+    lg: 'w-24 h-36 md:w-32 md:h-44 text-2xl md:text-3xl'
   };
 
   return (
     <div 
       onClick={!disabled ? onClick : undefined}
       className={`
-        relative flex flex-col items-center justify-center bg-white border rounded-md md:rounded-lg m-0.5 cursor-pointer transition-all duration-200 select-none
+        relative flex flex-col items-center justify-center bg-white border rounded-lg shadow-sm cursor-pointer transition-all duration-200 select-none
         ${sizeClasses[size]}
-        ${disabled ? 'opacity-30 grayscale cursor-not-allowed border-slate-200' : 'active:scale-95 md:hover:-translate-y-2 md:hover:shadow-xl border-slate-300'}
-        ${isTrump ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-200 shadow-[inset_0_0_10px_rgba(251,191,36,0.1)]' : ''}
-        ${highlighted ? 'ring-2 md:ring-4 ring-indigo-500 border-indigo-500 z-10 scale-105 shadow-indigo-500/50 shadow-lg' : ''}
-        ${isWinner ? 'ring-4 ring-amber-400 border-amber-500 scale-110 z-20 shadow-[0_0_25px_rgba(251,191,36,1)] animate-pulse' : ''}
+        ${disabled ? 'opacity-30 grayscale cursor-not-allowed' : 'active:scale-90 hover:shadow-lg'}
+        ${isTrump ? 'border-amber-400 ring-1 ring-amber-300' : 'border-slate-200'}
+        ${highlighted ? 'ring-4 ring-indigo-500 z-10' : ''}
+        ${isWinner ? 'ring-4 ring-amber-500 scale-110 z-20 shadow-amber-500/50 shadow-xl' : ''}
         ${className}
       `}
     >
-      <span className={`font-bold leading-none ${colorClass}`}>{card.rank}</span>
-      <span className={`${size === 'xs' || size === 'sm' ? 'text-lg' : 'text-2xl md:text-3xl'} leading-none ${colorClass}`}>{getSuitSymbol(card.suit)}</span>
-      {isTrump && <div className="absolute top-0 right-0.5 text-[7px] md:text-[10px] text-amber-600 font-black">T</div>}
-      {isWinner && (
-        <div className="absolute -top-2 -right-2 bg-amber-500 text-white rounded-full p-1 shadow-lg border border-white animate-bounce">
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-        </div>
-      )}
+      <span className={`font-black ${isRed ? 'text-red-600' : 'text-slate-900'}`}>{card.rank}</span>
+      <span className={`text-2xl md:text-4xl ${isRed ? 'text-red-600' : 'text-slate-900'}`}>{getSuitSymbol(card.suit)}</span>
+      {isTrump && <div className="absolute top-1 right-1 text-[8px] text-amber-600 font-bold px-1 bg-amber-100 rounded">TROMF</div>}
     </div>
   );
 };
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'game' | 'spec' | 'json' | 'engine'>('game');
+  const [activeTab, setActiveTab] = useState<'game' | 'score' | 'log' | 'help'>('game');
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [log, setLog] = useState<string[]>(["Vitajte v Mariáši."]);
-  const [isSolo, setIsSolo] = useState(true);
-  const [lastFinishedTrick, setLastFinishedTrick] = useState<Trick | null>(null);
+  const [log, setLog] = useState<string[]>([]);
   const [isCollecting, setIsCollecting] = useState(false);
   const [winningPlayerIndex, setWinningPlayerIndex] = useState<number | null>(null);
+  const [lastFinishedTrick, setLastFinishedTrick] = useState<Trick | null>(null);
+  const [selectedTalon, setSelectedTalon] = useState<Card[]>([]);
 
   const addLog = useCallback((msg: string) => {
-    setLog(prev => [...prev.slice(-29), msg]);
+    setLog(prev => [...prev.slice(-49), `${new Date().toLocaleTimeString().slice(0, 5)} - ${msg}`]);
   }, []);
 
   const startNewGame = useCallback((solo: boolean) => {
@@ -92,46 +85,40 @@ const App: React.FC = () => {
     state.players[0].hand = deck.slice(0, 12);
     state.players[1].hand = deck.slice(12, 22);
     state.players[2].hand = deck.slice(22, 32);
-    state.talon = state.players[0].hand.splice(10, 2);
     state.phase = 'BIDDING';
     setGameState(state);
-    setIsSolo(solo);
-    setLastFinishedTrick(null);
-    setIsCollecting(false);
-    setWinningPlayerIndex(null);
-    setActiveTab('game');
-    addLog("Hráč 1 volí tromf.");
+    addLog("Hra začína. Hráč 1 (Forhont) volí tromf.");
+    saveGame(state);
   }, [addLog]);
 
-  const selectTrump = (suit: Suit) => {
-    if (!gameState) return;
-    setGameState({ ...gameState, trumpSuit: suit });
-    addLog(`Tromf: ${suit}. Zvoľte záväzok.`);
-  };
+  useEffect(() => {
+    const saved = loadGame();
+    if (saved && !gameState) {
+      setGameState(saved);
+      addLog("Hra obnovená z pamäte.");
+    }
+  }, []);
 
-  const selectContract = (type: ContractType) => {
+  const handleAction = useCallback((move: any) => {
     if (!gameState) return;
-    setGameState({ ...gameState, contract: type, phase: 'PLAYING' });
-    addLog(`Hrá sa ${type}.`);
-  };
-
-  const handlePlayerMove = useCallback((card: Card) => {
-    if (!gameState || gameState.phase !== 'PLAYING' || isCollecting) return;
     try {
-      const nextState = applyMove(gameState, card);
-      addLog(`P${gameState.currentPlayerIndex + 1}: ${card.rank}${card.suit[0]}`);
+      const next = applyMove(gameState, move);
       
-      if (nextState.currentTrick.cards.length === 0 && nextState.history.length > gameState.history.length) {
-        const completedTrick = nextState.history[nextState.history.length - 1];
-        const winnerIdx = determineTrickWinner(
-          completedTrick, 
-          gameState.trumpSuit, 
-          gameState.contract === 'Betl' || gameState.contract === 'Durch'
-        );
+      if (move.type === 'PLAY_CARD') {
+        addLog(`P${gameState.currentPlayerIndex + 1}: ${move.card.rank}${move.card.suit[0]}`);
+      } else if (move.type === 'CHOOSE_TRUMP') {
+        addLog(`Zvolený tromf: ${move.suit}`);
+      } else if (move.type === 'CHOOSE_CONTRACT') {
+        addLog(`Záväzok: ${move.contract}`);
+      }
 
-        setLastFinishedTrick(completedTrick); 
-        setWinningPlayerIndex(winnerIdx);
-        setGameState(nextState);
+      if (next.currentTrick.cards.length === 0 && next.history.length > gameState.history.length) {
+        const completed = next.history[next.history.length - 1];
+        const winner = determineTrickWinner(completed, gameState.trumpSuit, gameState.contract === 'Betl' || gameState.contract === 'Durch');
+        setLastFinishedTrick(completed);
+        setWinningPlayerIndex(winner);
+        setGameState(next);
+        saveGame(next);
 
         setTimeout(() => {
           setIsCollecting(true);
@@ -140,31 +127,30 @@ const App: React.FC = () => {
             setLastFinishedTrick(null);
             setWinningPlayerIndex(null);
           }, 800);
-        }, 1000); 
+        }, 1200);
       } else {
-        setGameState(nextState);
+        setGameState(next);
+        saveGame(next);
       }
     } catch (e: any) {
-      addLog(`! ${e.message}`);
+      alert(e.message);
     }
-  }, [gameState, addLog, isCollecting]);
+  }, [gameState, addLog]);
 
   useEffect(() => {
-    if (isSolo && gameState?.phase === 'PLAYING' && gameState.currentPlayerIndex !== 0 && !isCollecting && winningPlayerIndex === null) {
+    if (gameState?.phase === 'PLAYING' && gameState.currentPlayerIndex !== 0 && !isCollecting && winningPlayerIndex === null) {
       const timer = setTimeout(() => {
         const botCard = getBotMove(gameState, gameState.currentPlayerIndex);
-        handlePlayerMove(botCard);
-      }, 600);
+        handleAction({ type: 'PLAY_CARD', card: botCard });
+      }, 800);
       return () => clearTimeout(timer);
     }
-  }, [gameState, isSolo, handlePlayerMove, isCollecting, winningPlayerIndex]);
+  }, [gameState, handleAction, isCollecting, winningPlayerIndex]);
 
   const legalMoves = useMemo(() => {
     if (!gameState || gameState.phase !== 'PLAYING') return [];
     return getLegalMoves(gameState, gameState.currentPlayerIndex);
   }, [gameState]);
-
-  const trickToDisplay = (isCollecting || winningPlayerIndex !== null) && lastFinishedTrick ? lastFinishedTrick : gameState?.currentTrick;
 
   const finalScore = useMemo(() => {
     if (gameState?.phase === 'FINISHED') {
@@ -176,228 +162,292 @@ const App: React.FC = () => {
     return null;
   }, [gameState]);
 
+  const trickToDisplay = (isCollecting || winningPlayerIndex !== null) && lastFinishedTrick ? lastFinishedTrick : gameState?.currentTrick;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col safe-area-padding overflow-x-hidden">
-      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 md:px-8 md:py-4 sticky top-0 z-[100] flex items-center justify-between">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col safe-area-padding overflow-hidden font-sans">
+      {/* Header */}
+      <header className="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center z-50 shadow-xl">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-indigo-600 rounded flex items-center justify-center font-black text-white italic text-sm">M</div>
-          <h1 className="text-lg md:text-xl font-black tracking-tighter">MARIÁŠ <span className="text-indigo-500 hidden xs:inline">PRO</span></h1>
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black shadow-lg shadow-indigo-500/20">M</div>
+          <span className="font-bold tracking-tighter text-xl">MARIÁŠ <span className="text-indigo-500">PRO</span></span>
         </div>
-        <nav className="flex gap-1 md:gap-2">
-          {['game', 'spec', 'engine'].map(t => (
-            <button 
-              key={t} onClick={() => setActiveTab(t as any)} 
-              className={`px-3 py-1.5 rounded-full text-[10px] md:text-xs font-bold uppercase transition-all ${activeTab === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              {t === 'game' ? 'Hra' : t === 'spec' ? 'Pravidlá' : 'Testy'}
-            </button>
-          ))}
-        </nav>
+        <button 
+          onClick={() => { clearGame(); setGameState(null); }}
+          className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-red-400 transition-colors bg-slate-800 px-3 py-1.5 rounded-full"
+        >
+          Reset
+        </button>
       </header>
 
-      <main className="flex-grow flex flex-col items-center p-2 md:p-6 w-full max-w-7xl mx-auto">
-        {activeTab === 'game' && (
-          !gameState ? (
-            <div className="flex flex-col items-center justify-center h-[70vh] w-full animate-fadeIn px-4">
-              <div className="bg-slate-900 p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] shadow-2xl border border-slate-800 text-center w-full max-w-md">
-                <h2 className="text-3xl md:text-5xl font-black mb-2 tracking-tighter">MARIÁŠ</h2>
-                <p className="text-slate-500 text-sm mb-8">Zvoľte herný režim</p>
-                <div className="space-y-3">
-                  <button onClick={() => startNewGame(true)} className="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white py-4 rounded-2xl font-bold text-lg transition-all shadow-xl">Sólo vs Boti</button>
-                  <button onClick={() => startNewGame(false)} className="w-full bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 py-4 rounded-2xl font-bold text-lg transition-all">Lokálne (3 Hráči)</button>
-                </div>
+      {/* Main Game Area */}
+      <main className="flex-grow relative flex flex-col md:flex-row overflow-hidden">
+        {!gameState ? (
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center bg-[radial-gradient(circle_at_center,_#1e1b4b_0%,_#020617_100%)]">
+            <div className="bg-slate-900 p-8 md:p-12 rounded-[2.5rem] border border-slate-800 shadow-2xl max-w-sm w-full animate-fadeIn">
+              <div className="mb-6 flex justify-center gap-2 opacity-50">
+                <div className="w-8 h-12 bg-white rounded border border-slate-400 -rotate-12" />
+                <div className="w-8 h-12 bg-white rounded border border-slate-400" />
+                <div className="w-8 h-12 bg-white rounded border border-slate-400 rotate-12" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-black mb-2 tracking-tighter">VÍTAJTE</h1>
+              <p className="text-slate-500 text-sm mb-8 font-medium">Tradičný slovenský Mariáš</p>
+              <div className="space-y-3">
+                <button 
+                  onClick={() => startNewGame(true)}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-600/20 active:scale-95 transition-all"
+                >
+                  SÓLO VS BOTI
+                </button>
+                <button 
+                  onClick={() => startNewGame(false)}
+                  className="w-full bg-slate-800 hover:bg-slate-700 py-5 rounded-2xl font-bold text-lg border border-slate-700 active:scale-95 transition-all"
+                >
+                  LOKÁLNY PASS-N-PLAY
+                </button>
               </div>
             </div>
-          ) : (
-            <div className="w-full flex flex-col lg:flex-row gap-4 md:gap-6 animate-fadeIn h-full">
-              <div className="flex-grow flex flex-col gap-4">
-                <div className="relative aspect-[4/5] xs:aspect-[4/3] md:aspect-video lg:aspect-square xl:aspect-video w-full bg-[radial-gradient(circle_at_center,_#065f46_0%,_#064e3b_40%,_#022c22_100%)] rounded-[2rem] md:rounded-[3.5rem] p-4 md:p-8 border-4 border-slate-900 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col items-center justify-between overflow-hidden">
-                  
-                  <div className="flex justify-between w-full px-4 md:px-12 opacity-60">
-                    <div className="flex flex-col items-center">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 mb-1">Hráč 2</div>
-                      <div className="flex -space-x-4 md:-space-x-6">
-                        {[...Array(gameState.players[1].hand.length)].map((_, i) => (
-                          <div key={i} className="w-6 h-9 md:w-8 md:h-12 bg-emerald-950 border border-emerald-800 rounded shadow-md" />
-                        ))}
-                      </div>
+          </div>
+        ) : (
+          <>
+            {/* Desktop Sidebars */}
+            <aside className="hidden lg:flex flex-col w-80 bg-slate-900/50 border-r border-slate-800 p-6 overflow-y-auto">
+              <h2 className="text-xs font-black text-indigo-400 tracking-[0.3em] uppercase mb-6">Bodový Stav</h2>
+              <div className="space-y-4">
+                {gameState.players.map(p => (
+                  <div key={p.id} className={`p-5 rounded-3xl border transition-all ${gameState.currentPlayerIndex === p.id ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10' : 'border-slate-800 bg-slate-950/50'}`}>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className={`font-bold ${gameState.currentPlayerIndex === p.id ? 'text-white' : 'text-slate-500'}`}>Hráč {p.id + 1}</span>
+                      {gameState.activePlayerIndex === p.id && <span className="text-[9px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full">AKTÉR</span>}
                     </div>
-                    <div className="flex flex-col items-center">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 mb-1">Hráč 3</div>
-                      <div className="flex -space-x-4 md:-space-x-6">
-                        {[...Array(gameState.players[2].hand.length)].map((_, i) => (
-                          <div key={i} className="w-6 h-9 md:w-8 md:h-12 bg-emerald-950 border border-emerald-800 rounded shadow-md" />
-                        ))}
-                      </div>
+                    <div className="text-3xl font-black flex items-baseline gap-2">
+                      {p.collectedCards.length / 3} 
+                      <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">štychov</span>
                     </div>
                   </div>
+                ))}
+              </div>
+            </aside>
 
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    {gameState.phase === 'BIDDING' && gameState.currentPlayerIndex === 0 && (
-                      <div className="bg-white/95 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-2xl z-50 text-slate-900 max-w-[90%] w-80 pointer-events-auto border-t-4 border-indigo-600 animate-fadeIn">
-                        <h3 className="text-lg md:text-xl font-black mb-4 text-center tracking-tight">{!gameState.trumpSuit ? 'VOĽBA TROMFU' : 'VOĽBA ZÁVÄZKU'}</h3>
-                        {!gameState.trumpSuit ? (
-                          <div className="grid grid-cols-2 gap-2">
-                            {SUITS.map(s => (
-                              <button key={s} onClick={() => selectTrump(s)} className="p-3 md:p-4 bg-slate-100 hover:bg-indigo-600 hover:text-white rounded-xl font-bold transition-all active:scale-95 text-sm">
-                                {s}
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-2">
-                            {['Hra', 'Sedma', 'Sto', 'Betl', 'Durch'].map(c => (
-                              <button key={c} onClick={() => selectContract(c as ContractType)} className="p-3 md:p-4 bg-slate-100 hover:bg-emerald-600 hover:text-white rounded-xl font-bold transition-all active:scale-95 text-sm">
-                                {c}
-                              </button>
-                            ))}
+            {/* Game Table */}
+            <div className="flex-grow flex flex-col bg-[radial-gradient(circle_at_center,_#065f46_0%,_#022c22_100%)] p-4 md:p-8 relative">
+              
+              {/* Opponents Heads-up */}
+              <div className="flex justify-between px-2 md:px-12 opacity-30 mt-4">
+                <div className="text-center">
+                  <div className="text-[9px] font-black text-emerald-300 uppercase tracking-widest mb-2">Hráč 2</div>
+                  <div className="flex -space-x-10 md:-space-x-14">
+                    {[...Array(gameState.players[1].hand.length)].map((_, i) => (
+                      <div key={i} className="w-12 h-16 md:w-20 md:h-28 bg-emerald-950 border border-emerald-800 rounded-xl shadow-xl" />
+                    ))}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] font-black text-emerald-300 uppercase tracking-widest mb-2">Hráč 3</div>
+                  <div className="flex -space-x-10 md:-space-x-14">
+                    {[...Array(gameState.players[2].hand.length)].map((_, i) => (
+                      <div key={i} className="w-12 h-16 md:w-20 md:h-28 bg-emerald-950 border border-emerald-800 rounded-xl shadow-xl" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Game Space */}
+              <div className="flex-grow relative flex items-center justify-center">
+                
+                {/* Bidding/Phase Overlays */}
+                {gameState.phase === 'BIDDING' && gameState.currentPlayerIndex === 0 && (
+                   <div className="absolute z-[100] bg-white p-8 rounded-[2.5rem] shadow-2xl text-slate-900 border-t-[12px] border-indigo-600 animate-fadeIn max-w-sm w-full">
+                     <h3 className="text-2xl font-black mb-6 tracking-tighter text-center uppercase">
+                       {!gameState.trumpSuit ? 'VOĽBA TROMFU' : 'VOĽBA ZÁVÄZKU'}
+                     </h3>
+                     {!gameState.trumpSuit ? (
+                       <div className="grid grid-cols-2 gap-3">
+                         {SUITS.map(s => (
+                           <button key={s} onClick={() => handleAction({ type: 'CHOOSE_TRUMP', suit: s })} className="p-5 bg-slate-100 hover:bg-indigo-600 hover:text-white rounded-2xl font-black transition-all active:scale-95 text-sm shadow-sm">
+                             {s.toUpperCase()}
+                           </button>
+                         ))}
+                       </div>
+                     ) : (
+                       <div className="grid grid-cols-2 gap-3">
+                         {['Hra', 'Sedma', 'Sto', 'Betl', 'Durch'].map(c => (
+                           <button key={c} onClick={() => handleAction({ type: 'CHOOSE_CONTRACT', contract: c as ContractType })} className="p-5 bg-slate-100 hover:bg-emerald-600 hover:text-white rounded-2xl font-black transition-all active:scale-95 text-sm shadow-sm">
+                             {c.toUpperCase()}
+                           </button>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+                )}
+
+                {gameState.phase === 'TALON' && gameState.currentPlayerIndex === 0 && (
+                  <div className="absolute z-[100] bg-white p-8 rounded-[2.5rem] shadow-2xl text-slate-900 border-t-[12px] border-amber-500 animate-fadeIn max-w-sm w-full text-center">
+                    <h3 className="text-2xl font-black mb-2 tracking-tighter uppercase">ODLOŽ TALÓN</h3>
+                    <p className="text-xs text-slate-500 mb-8 font-bold uppercase tracking-widest">Zvoľ 2 karty (A/10 zakázané)</p>
+                    <button 
+                      disabled={selectedTalon.length !== 2}
+                      onClick={() => { handleAction({ type: 'DISCARD_TALON', cards: selectedTalon }); setSelectedTalon([]); }}
+                      className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg disabled:opacity-30 transition-all active:scale-95 shadow-xl"
+                    >
+                      POTVRDIŤ VÝBER
+                    </button>
+                  </div>
+                )}
+
+                {/* Final Result Overlay */}
+                {gameState.phase === 'FINISHED' && finalScore && (
+                  <div className="absolute z-[110] bg-white p-10 rounded-[3rem] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] text-slate-900 text-center animate-fadeIn border-t-[16px] border-indigo-600 max-w-sm w-full">
+                     <div className="mb-4 text-xs font-black text-slate-400 uppercase tracking-[0.4em]">Výsledok</div>
+                     <h2 className={`text-5xl font-black mb-6 tracking-tighter ${finalScore.success ? 'text-emerald-600' : 'text-red-600'}`}>
+                       {finalScore.success ? 'VÝHRA!' : 'PREHRA'}
+                     </h2>
+                     <div className="space-y-3 mb-10 text-sm">
+                        <div className="flex justify-between font-bold border-b pb-2">
+                           <span className="text-slate-400 text-[10px] uppercase">Body Aktér</span>
+                           <span>{finalScore.score.actorPoints + finalScore.score.actorAnnouncements}</span>
+                        </div>
+                        <div className="flex justify-between font-bold border-b pb-2">
+                           <span className="text-slate-400 text-[10px] uppercase">Body Obrana</span>
+                           <span>{finalScore.score.defensePoints + finalScore.score.defenseAnnouncements}</span>
+                        </div>
+                     </div>
+                     <button onClick={() => startNewGame(true)} className="w-full bg-slate-900 text-white py-5 px-8 rounded-[1.5rem] font-black text-xl hover:bg-indigo-600 transition-colors shadow-2xl active:scale-95">NOVÁ HRA</button>
+                  </div>
+                )}
+
+                {/* Trick Surface */}
+                <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
+                  {trickToDisplay?.cards.map((tc, idx) => {
+                    const angle = (tc.playerIndex * 120) - 90;
+                    const rad = (angle * Math.PI) / 180;
+                    const dist = window.innerWidth < 768 ? 70 : 150;
+                    const isWinner = winningPlayerIndex === tc.playerIndex;
+                    return (
+                      <div 
+                        key={`${tc.playerIndex}-${idx}`}
+                        className={`absolute transition-all duration-700 ease-in-out ${isCollecting ? 'opacity-0 scale-50 -translate-y-64 blur-xl' : 'opacity-100 scale-100'}`}
+                        style={{ transform: !isCollecting ? `translate(${Math.cos(rad) * dist}px, ${Math.sin(rad) * dist}px)` : undefined }}
+                      >
+                        <CardVisual 
+                          card={tc.card} 
+                          isTrump={tc.card.suit === gameState.trumpSuit} 
+                          isWinner={isWinner}
+                          size={window.innerWidth < 768 ? 'sm' : 'md'}
+                          className="shadow-2xl"
+                        />
+                        {!isCollecting && (
+                          <div className={`absolute -bottom-8 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full whitespace-nowrap tracking-tighter ${isWinner ? 'bg-amber-500 text-white ring-4 ring-amber-500/30' : 'bg-black/30 text-white/70'}`}>
+                            {isWinner ? `VÍŤAZ P${tc.playerIndex + 1}` : `P${tc.playerIndex + 1}`}
                           </div>
                         )}
                       </div>
-                    )}
-
-                    {gameState.phase === 'PLAYING' && trickToDisplay?.cards.map((tc, idx) => {
-                      const angle = (tc.playerIndex * 120) - 90;
-                      const rad = (angle * Math.PI) / 180;
-                      const dist = window.innerWidth < 768 ? 45 : 80;
-                      const x = Math.cos(rad) * dist;
-                      const y = Math.sin(rad) * dist;
-                      const isWinner = winningPlayerIndex === tc.playerIndex;
-                      return (
-                        <div key={`${tc.playerIndex}-${tc.card.suit}-${tc.card.rank}`} className={`absolute transition-all duration-500 ease-in-out ${isCollecting ? 'opacity-0 scale-50 -translate-y-20 blur-sm' : 'opacity-100 scale-100'}`} style={{ transform: !isCollecting ? `translate(${x}px, ${y}px)` : undefined }}>
-                           <CardVisual card={tc.card} isTrump={tc.card.suit === gameState.trumpSuit} isWinner={isWinner} size={window.innerWidth < 768 ? 'sm' : 'md'} />
-                           <div className={`absolute -bottom-5 left-1/2 -translate-x-1/2 bg-black/40 text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-tighter whitespace-nowrap ${isWinner ? 'bg-amber-600/60 ring-1 ring-amber-400' : ''}`}>
-                             {isWinner ? 'VÍŤAZ P' : 'P'}{tc.playerIndex+1}
-                           </div>
-                        </div>
-                      );
-                    })}
-
-                    {gameState.phase === 'FINISHED' && finalScore && (
-                      <div className="bg-white p-8 rounded-3xl shadow-2xl z-50 text-slate-900 text-center animate-fadeIn border-t-8 border-indigo-600 pointer-events-auto max-w-sm w-full">
-                         <h2 className={`text-4xl font-black mb-2 tracking-tighter ${finalScore.success ? 'text-emerald-600' : 'text-red-600'}`}>
-                           {finalScore.success ? 'VÝHRA!' : 'PREHRA'}
-                         </h2>
-                         <div className="my-4 space-y-2 text-sm">
-                           <div className="flex justify-between border-b pb-1">
-                             <span className="text-slate-500 font-bold uppercase text-[10px]">Aktér body</span>
-                             <span className="font-bold">{finalScore.score.actorPoints} + {finalScore.score.actorAnnouncements} (hlášky)</span>
-                           </div>
-                           <div className="flex justify-between border-b pb-1">
-                             <span className="text-slate-500 font-bold uppercase text-[10px]">Obrana body</span>
-                             <span className="font-bold">{finalScore.score.defensePoints} + {finalScore.score.defenseAnnouncements}</span>
-                           </div>
-                         </div>
-                         <button onClick={() => startNewGame(isSolo)} className="w-full bg-slate-900 text-white py-4 px-8 rounded-2xl font-bold hover:bg-indigo-600 transition-colors shadow-xl active:scale-95">Nová Hra</button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="w-full flex flex-col items-center mt-auto pb-2 md:pb-4 z-10">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] font-black text-emerald-300/40 uppercase tracking-[0.2em]">Vaše karty</span>
-                      {gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING' && !isCollecting && winningPlayerIndex === null && (
-                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-ping" />
-                      )}
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-0.5 md:gap-1 max-w-full px-2">
-                       {gameState.players[0].hand.map((c, i) => {
-                         const isLegal = legalMoves.some(m => m.suit === c.suit && m.rank === c.rank);
-                         const isTurn = gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING' && !isCollecting && winningPlayerIndex === null;
-                         return (
-                           <CardVisual 
-                             key={i} card={c} isTrump={c.suit === gameState.trumpSuit} 
-                             disabled={!isTurn || !isLegal} highlighted={isTurn && isLegal}
-                             onClick={() => handlePlayerMove(c)}
-                             size={window.innerWidth < 480 ? 'sm' : 'md'}
-                           />
-                         );
-                       })}
-                    </div>
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              <aside className="w-full lg:w-80 flex flex-col gap-4">
-                <div className="grid grid-cols-2 lg:grid-cols-1 gap-4">
-                  <div className="bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-800 shadow-xl">
-                    <h3 className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mb-3 opacity-60">Aktuálny Stav</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-end">
-                        <span className="text-slate-500 text-xs">Tromf:</span>
-                        <span className="text-lg font-black text-amber-400 leading-none">{gameState.trumpSuit || '-'}</span>
-                      </div>
-                      <div className="flex justify-between items-end">
-                        <span className="text-slate-500 text-xs">Záväzok:</span>
-                        <span className="text-sm font-bold text-white leading-none">{gameState.contract}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-800 shadow-xl">
-                    <h3 className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mb-3 opacity-60">Hráči</h3>
-                    <div className="space-y-2">
-                      {gameState.players.map(p => (
-                        <div key={p.id} className={`flex justify-between items-center p-2 rounded-lg transition-colors ${gameState.currentPlayerIndex === p.id ? 'bg-indigo-600/20 ring-1 ring-indigo-500/50' : 'bg-slate-950/40'}`}>
-                           <span className={`text-xs font-bold ${gameState.currentPlayerIndex === p.id ? 'text-white' : 'text-slate-500'}`}>P{p.id + 1}</span>
-                           <span className="text-[10px] font-mono opacity-40">{p.collectedCards.length / 3} štychov</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              {/* Mobile Info Bar */}
+              <div className="lg:hidden flex justify-between items-center py-3 px-6 bg-slate-900/80 backdrop-blur-lg rounded-[1.5rem] border border-white/5 mb-2 shadow-2xl">
+                <div className="text-center">
+                  <div className="text-[7px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Tromf</div>
+                  <div className="text-sm font-black text-amber-400">{gameState.trumpSuit || '-'}</div>
                 </div>
-
-                <div className="flex-grow bg-slate-900 text-indigo-300/80 p-4 rounded-2xl md:rounded-3xl font-mono text-[9px] md:text-[10px] h-32 md:h-48 lg:h-64 overflow-y-auto border border-slate-800 scrollbar-hide shadow-inner">
-                   <div className="flex flex-col-reverse">
-                     {log.map((m, i) => (
-                       <div key={i} className={`mb-1.5 pb-1 border-b border-slate-800/50 flex gap-2 ${i === log.length - 1 ? 'text-indigo-200 font-bold' : 'opacity-60'}`}>
-                         <span className="opacity-30">[{i+1}]</span>
-                         <span>{m}</span>
-                       </div>
-                     ))}
-                   </div>
+                <div className="text-center">
+                   <div className="text-[7px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Záväzok</div>
+                   <div className="text-sm font-black text-white">{gameState.contract.toUpperCase()}</div>
                 </div>
-                <button onClick={() => setGameState(null)} className="w-full py-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-700 hover:text-slate-400 transition-colors">Ukončiť hru</button>
-              </aside>
+                <div className="text-center">
+                   <div className="text-[7px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Na ťahu</div>
+                   <div className="text-sm font-black text-indigo-400">P{gameState.currentPlayerIndex + 1}</div>
+                </div>
+              </div>
             </div>
-          )
-        )}
-        
-        {activeTab === 'spec' && (
-          <div className="max-w-3xl w-full py-4 md:py-8 space-y-6 md:space-y-8 animate-fadeIn px-2">
-            <h2 className="text-2xl md:text-3xl font-black border-b border-slate-800 pb-4 tracking-tighter uppercase">Špecifikácia Mariáša</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-              {DICTIONARY.map(d => (
-                <div key={d.term} className="bg-slate-900 p-4 md:p-5 rounded-2xl border border-slate-800 hover:border-indigo-900 transition-colors">
-                   <dt className="text-indigo-400 font-bold text-base md:text-lg mb-1">{d.term}</dt>
-                   <dd className="text-slate-400 text-xs md:text-sm leading-relaxed">{d.definition}</dd>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {activeTab === 'engine' && (
-          <div className="max-w-2xl w-full py-4 md:py-8 animate-fadeIn px-2">
-             <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
-               <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
-                 <h3 className="text-xs font-black tracking-widest uppercase opacity-50">Logika Enginu</h3>
-                 <span className="text-[10px] bg-emerald-900 text-emerald-400 px-2 py-0.5 rounded-full font-bold">Stable v1.3</span>
+            {/* Desktop Log Sidebar */}
+            <aside className="hidden lg:flex flex-col w-80 bg-slate-900/50 border-l border-slate-800 p-6 overflow-hidden">
+               <h2 className="text-xs font-black text-indigo-400 tracking-[0.3em] uppercase mb-6">Herný Log</h2>
+               <div className="flex-grow overflow-y-auto space-y-2 scrollbar-hide text-[11px] font-mono opacity-60">
+                 {log.slice().reverse().map((m, i) => (
+                   <div key={i} className="border-b border-white/5 pb-2 last:border-0">{m}</div>
+                 ))}
                </div>
-               <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto font-mono text-[10px] md:text-xs">
-                  {runTests().map((t, i) => (
-                    <div key={i} className={`p-3 rounded-xl ${t.includes('✅') ? 'bg-emerald-950/20 text-emerald-400' : 'bg-red-950/20 text-red-400'} border border-white/5`}>
-                      {t}
-                    </div>
-                  ))}
-               </div>
-             </div>
-          </div>
+            </aside>
+          </>
         )}
       </main>
 
-      <footer className="py-6 text-center border-t border-slate-900/50">
-        <p className="text-[10px] font-bold text-slate-700 uppercase tracking-[0.4em]">Mariáš Pro • PWA Edition</p>
-      </footer>
+      {/* Hand & Bottom Controls */}
+      {gameState && (
+        <div className="bg-slate-900 border-t border-slate-800 pb-[env(safe-area-inset-bottom)] pt-4 px-4 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-50">
+          <div className="flex items-center justify-between mb-3 px-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Moja Ruka</span>
+            <div className="flex bg-slate-800 rounded-full p-1 shadow-inner">
+              {['game', 'score', 'log'].map(t => (
+                <button 
+                  key={t} onClick={() => setActiveTab(t as any)}
+                  className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase transition-all tracking-widest ${activeTab === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500'}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative min-h-[140px] flex items-center">
+            {activeTab === 'game' && (
+              <div className="flex overflow-x-auto gap-2.5 pb-6 pt-2 scrollbar-hide snap-x items-center w-full">
+                {gameState.players[0].hand.map((c, i) => {
+                  const isLegal = gameState.phase === 'PLAYING' && legalMoves.some(l => l.suit === c.suit && l.rank === c.rank);
+                  const isTurn = gameState.currentPlayerIndex === 0 && !isCollecting && winningPlayerIndex === null;
+                  const isSelectedForTalon = selectedTalon.some(s => s.suit === c.suit && s.rank === c.rank);
+                  
+                  const handleClick = () => {
+                    if (gameState.phase === 'TALON') {
+                      if (isSelectedForTalon) setSelectedTalon(prev => prev.filter(s => !(s.suit === c.suit && s.rank === c.rank)));
+                      else if (selectedTalon.length < 2) setSelectedTalon(prev => [...prev, c]);
+                    } else if (isTurn && isLegal) {
+                      handleAction({ type: 'PLAY_CARD', card: c });
+                      if ('vibrate' in navigator) navigator.vibrate(12);
+                    }
+                  };
+
+                  return (
+                    <div key={`${c.suit}-${c.rank}-${i}`} className="snap-center shrink-0">
+                      <CardVisual 
+                        card={c} 
+                        isTrump={c.suit === gameState.trumpSuit} 
+                        disabled={gameState.phase === 'PLAYING' ? (!isTurn || !isLegal) : false}
+                        highlighted={isSelectedForTalon}
+                        onClick={handleClick}
+                        size="md"
+                        className="shadow-xl"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {activeTab === 'score' && (
+              <div className="w-full bg-slate-950/50 p-6 rounded-[2rem] animate-fadeIn grid grid-cols-3 gap-4 border border-white/5">
+                 {gameState.players.map(p => (
+                   <div key={p.id} className="text-center">
+                     <div className="text-[8px] font-black text-slate-600 uppercase mb-1">P{p.id+1}</div>
+                     <div className="text-2xl font-black text-white">{p.collectedCards.length / 3}</div>
+                   </div>
+                 ))}
+              </div>
+            )}
+
+            {activeTab === 'log' && (
+               <div className="w-full bg-slate-950/50 p-5 rounded-[2rem] animate-fadeIn h-[120px] overflow-y-auto font-mono text-[10px] text-indigo-300 border border-white/5">
+                  {log.slice().reverse().map((m, i) => <div key={i} className="mb-1 opacity-80">{m}</div>)}
+               </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

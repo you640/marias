@@ -1,16 +1,19 @@
 
 {
-  "name": "Mariáš Pro",
+  "name": "Mariáš Pro Professional",
   "short_name": "Mariáš",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#312e81",
+  "background_color": "#020617",
+  "theme_color": "#4f46e5",
+  "description": "Profesionálna slovenská kartová hra Mariáš.",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/1055/1055823.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "orientation": "any"
 }

@@ -28,6 +28,7 @@
         overscroll-behavior-y: contain;
         -webkit-tap-highlight-color: transparent;
         background-color: #020617;
+        overflow: hidden;
       }
       .scrollbar-hide::-webkit-scrollbar { display: none; }
       .safe-area-padding {
@@ -36,11 +37,9 @@
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
       }
-      /* Custom utility for extra small screens */
-      @media (min-width: 380px) {
-        .xs\:inline { display: inline; }
-        .xs\:aspect-\[4\/3\] { aspect-ratio: 4/3; }
-      }
+      /* Card action animations */
+      @keyframes flyUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-200px) scale(0.5); opacity: 0; } }
+      .collect-animation { animation: flyUp 0.8s ease-in-out forwards; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white">

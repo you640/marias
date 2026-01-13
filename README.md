@@ -1,20 +1,26 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# 🃏 Mariáš Pro PWA
 
-This contains everything you need to run your app locally.
+Profesionálna digitálna implementácia tradičnej slovenskej kartovej hry **Mariáš** (verzia pre 3 hráčov, volený tromf). Aplikácia je vyvinutá ako **Progressive Web App (PWA)** s dôrazom na mobilné ovládanie, offline režim a inteligentných botov.
 
-View your app in AI Studio: https://ai.studio/apps/drive/17yR2Z7feL1n7tFEkcYrDNezenC_3SseC
+## ✨ Vlastnosti
+- **Mobile-First Design**: Ovládanie optimalizované pre jeden palec a safe-area iPhonov.
+- **Kompletné Pravidlá**: Podpora pre záväzky Hra, Sedma, Sto, 100+7, Betl a Durch.
+- **Smart Boti**: Heuristická AI, ktorá sleduje odohrané karty a spolupracuje v obrane.
+- **Offline Režim**: Vďaka Service Workeru hra beží aj bez pripojenia k internetu.
+- **Persistence**: Automatické ukladanie rozohranej hry do localStorage.
 
-## Run Locally
+## 🚀 Rýchly štart
+1. Nainštalujte závislosti: `npm install`
+2. Spustite vývojový server: `npm run dev`
+3. Build pre produkciu: `npm run build`
 
-**Prerequisites:**  Node.js
+## 🛠 Technológie
+- **React 19** + **TypeScript**
+- **Tailwind CSS** (Responzívny layout)
+- **Vite** (Build tool)
+- **Service Workers** (PWA/Offline)
+- **Vitest** (Engine testy)
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## ⚖️ Licencia
+MIT. Vyvinuté pre fanúšikov kartových hier.
