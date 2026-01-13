@@ -1,0 +1,5 @@
+{
+  "name": "Mariáš Pro PWA",
+  "description": "Profesionálna PWA implementácia kartovej hry Mariáš pre 3 hráčov s inteligentnými botmi a offline režimom.",
+  "requestFramePermissions": []
+}
