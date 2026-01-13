@@ -220,10 +220,23 @@ const App: React.FC = () => {
                       const dist = window.innerWidth < 768 ? 45 : 80;
                       const x = Math.cos(rad) * dist;
                       const y = Math.sin(rad) * dist;
+                      
+                      // Find if this card triggered an announcement (Hláška)
+                      const player = gameState.players[tc.playerIndex];
+                      const announcement = player.announcements.find(a => a.suit === tc.card.suit);
+                      const isFirstCardOfTrick = idx === 0;
+
                       return (
                         <div key={idx} className="absolute transition-all duration-300 ease-out" style={{ transform: `translate(${x}px, ${y}px)` }}>
                            <CardVisual card={tc.card} isTrump={tc.card.suit === gameState.trumpSuit} size={window.innerWidth < 768 ? 'sm' : 'md'} />
-                           <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-black/40 text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-tighter">P{tc.playerIndex+1}</div>
+                           <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-black/40 text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-tighter whitespace-nowrap">P{tc.playerIndex+1}</div>
+                           
+                           {/* Announcement Display (Hláška) */}
+                           {isFirstCardOfTrick && announcement && (
+                             <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[9px] font-black px-2 py-1 rounded-full shadow-lg animate-bounce border border-amber-300 z-20 whitespace-nowrap">
+                               HLÁŠKA {announcement.value}
+                             </div>
+                           )}
                         </div>
                       );
                     })}
