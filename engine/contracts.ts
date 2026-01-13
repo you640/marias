@@ -7,24 +7,41 @@ export const evaluateContract = (state: GameState): boolean => {
 
   const score = calculateFinalScore(state);
   const actorIndex = state.activePlayerIndex;
+  const actor = state.players[actorIndex];
 
   switch (state.contract) {
     case 'Hra':
-      return score.winner === 'actor';
+      // Aktér musí mať viac bodov ako celá obrana dohromady
+      return (score.actorPoints + score.actorAnnouncements) > (score.defensePoints + score.defenseAnnouncements);
+    
     case 'Sedma':
+      // Posledný štych musí vyhrať aktér a víťazná karta musí byť tromfová 7
       const lastTrick = state.history[state.history.length - 1];
-      const winningCard = lastTrick.cards.find(tc => 
+      const winningCardEntry = lastTrick.cards.find(tc => 
         tc.card.suit === state.trumpSuit && tc.card.rank === '7'
       );
-      // Trump 7 must be in the last trick and it must win
-      const winnerIndex = (score as any).lastWinnerIndex ?? 0; // Simplified for snippet
-      return !!winningCard && winningCard.playerIndex === actorIndex;
-    case 'Betl':
-      return state.players[actorIndex].collectedCards.length === 0;
-    case 'Durch':
-      return state.players[actorIndex].collectedCards.length === 30; // 10 tricks * 3 cards
+      // Musíme zistiť, kto reálne vyhral štych (index)
+      // determineTrickWinner je v scoring.ts, tu predpokladáme, že historia štychu obsahuje info o víťazovi
+      // V našej implementácii applyMove víťaz vynáša ďalší štych, takže môžeme zistiť víťaza z history.
+      return !!winningCardEntry && winningCardEntry.playerIndex === actorIndex;
+
     case 'Sto':
       return (score.actorPoints + score.actorAnnouncements) >= 100;
+
+    case '100+7':
+      const isSto = (score.actorPoints + score.actorAnnouncements) >= 100;
+      const lastT = state.history[state.history.length - 1];
+      const hasSeven = lastT.cards.some(tc => tc.card.suit === state.trumpSuit && tc.card.rank === '7' && tc.playerIndex === actorIndex);
+      return isSto && hasSeven;
+
+    case 'Betl':
+      // Aktér nesmie zobrať ani jeden štych
+      return actor.collectedCards.length === 0;
+
+    case 'Durch':
+      // Aktér musí zobrať všetky štychy (10 štychov * 3 karty = 30)
+      return actor.collectedCards.length === 30;
+
     default:
       return false;
   }

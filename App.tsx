@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { GameState, Card, Suit, ContractType } from './types';
+import { GameState, Card, Suit, ContractType, Trick } from './types';
 import { createInitialState } from './engine/state';
 import { createDeck, shuffleDeck } from './engine/deck';
 import { getLegalMoves } from './engine/legalMoves';
@@ -8,6 +8,8 @@ import { applyMove } from './engine/applyMove';
 import { calculateFinalScore } from './engine/scoring';
 import { getBotMove } from './engine/bot';
 import { SUITS } from './engine/cards';
+import { determineTrickWinner } from './engine/scoring';
+import { evaluateContract } from './engine/contracts';
 import { 
   DICTIONARY, 
   JSON_RULESET 
@@ -22,8 +24,10 @@ const CardVisual: React.FC<{
   disabled?: boolean; 
   isTrump?: boolean;
   highlighted?: boolean;
+  isWinner?: boolean;
   size?: 'xs' | 'sm' | 'md' | 'lg';
-}> = ({ card, onClick, disabled, isTrump, highlighted, size = 'md' }) => {
+  className?: string;
+}> = ({ card, onClick, disabled, isTrump, highlighted, isWinner, size = 'md', className = '' }) => {
   const getSuitSymbol = (s: Suit) => {
     switch(s) {
       case 'Srdce': return '♥';
@@ -51,12 +55,19 @@ const CardVisual: React.FC<{
         ${sizeClasses[size]}
         ${disabled ? 'opacity-30 grayscale cursor-not-allowed border-slate-200' : 'active:scale-95 md:hover:-translate-y-2 md:hover:shadow-xl border-slate-300'}
         ${isTrump ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-200 shadow-[inset_0_0_10px_rgba(251,191,36,0.1)]' : ''}
-        ${highlighted ? 'ring-2 md:ring-4 ring-indigo-500 border-indigo-500 z-10 scale-105' : ''}
+        ${highlighted ? 'ring-2 md:ring-4 ring-indigo-500 border-indigo-500 z-10 scale-105 shadow-indigo-500/50 shadow-lg' : ''}
+        ${isWinner ? 'ring-4 ring-amber-400 border-amber-500 scale-110 z-20 shadow-[0_0_25px_rgba(251,191,36,1)] animate-pulse' : ''}
+        ${className}
       `}
     >
       <span className={`font-bold leading-none ${colorClass}`}>{card.rank}</span>
       <span className={`${size === 'xs' || size === 'sm' ? 'text-lg' : 'text-2xl md:text-3xl'} leading-none ${colorClass}`}>{getSuitSymbol(card.suit)}</span>
       {isTrump && <div className="absolute top-0 right-0.5 text-[7px] md:text-[10px] text-amber-600 font-black">T</div>}
+      {isWinner && (
+        <div className="absolute -top-2 -right-2 bg-amber-500 text-white rounded-full p-1 shadow-lg border border-white animate-bounce">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+        </div>
+      )}
     </div>
   );
 };
@@ -66,6 +77,9 @@ const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [log, setLog] = useState<string[]>(["Vitajte v Mariáši."]);
   const [isSolo, setIsSolo] = useState(true);
+  const [lastFinishedTrick, setLastFinishedTrick] = useState<Trick | null>(null);
+  const [isCollecting, setIsCollecting] = useState(false);
+  const [winningPlayerIndex, setWinningPlayerIndex] = useState<number | null>(null);
 
   const addLog = useCallback((msg: string) => {
     setLog(prev => [...prev.slice(-29), msg]);
@@ -82,6 +96,9 @@ const App: React.FC = () => {
     state.phase = 'BIDDING';
     setGameState(state);
     setIsSolo(solo);
+    setLastFinishedTrick(null);
+    setIsCollecting(false);
+    setWinningPlayerIndex(null);
     setActiveTab('game');
     addLog("Hráč 1 volí tromf.");
   }, [addLog]);
@@ -99,34 +116,68 @@ const App: React.FC = () => {
   };
 
   const handlePlayerMove = useCallback((card: Card) => {
-    if (!gameState || gameState.phase !== 'PLAYING') return;
+    if (!gameState || gameState.phase !== 'PLAYING' || isCollecting) return;
     try {
       const nextState = applyMove(gameState, card);
       addLog(`P${gameState.currentPlayerIndex + 1}: ${card.rank}${card.suit[0]}`);
-      setGameState(nextState);
+      
+      if (nextState.currentTrick.cards.length === 0 && nextState.history.length > gameState.history.length) {
+        const completedTrick = nextState.history[nextState.history.length - 1];
+        const winnerIdx = determineTrickWinner(
+          completedTrick, 
+          gameState.trumpSuit, 
+          gameState.contract === 'Betl' || gameState.contract === 'Durch'
+        );
+
+        setLastFinishedTrick(completedTrick); 
+        setWinningPlayerIndex(winnerIdx);
+        setGameState(nextState);
+
+        setTimeout(() => {
+          setIsCollecting(true);
+          setTimeout(() => {
+            setIsCollecting(false);
+            setLastFinishedTrick(null);
+            setWinningPlayerIndex(null);
+          }, 800);
+        }, 1000); 
+      } else {
+        setGameState(nextState);
+      }
     } catch (e: any) {
       addLog(`! ${e.message}`);
     }
-  }, [gameState, addLog]);
+  }, [gameState, addLog, isCollecting]);
 
   useEffect(() => {
-    if (isSolo && gameState?.phase === 'PLAYING' && gameState.currentPlayerIndex !== 0) {
+    if (isSolo && gameState?.phase === 'PLAYING' && gameState.currentPlayerIndex !== 0 && !isCollecting && winningPlayerIndex === null) {
       const timer = setTimeout(() => {
         const botCard = getBotMove(gameState, gameState.currentPlayerIndex);
         handlePlayerMove(botCard);
       }, 600);
       return () => clearTimeout(timer);
     }
-  }, [gameState, isSolo, handlePlayerMove]);
+  }, [gameState, isSolo, handlePlayerMove, isCollecting, winningPlayerIndex]);
 
   const legalMoves = useMemo(() => {
     if (!gameState || gameState.phase !== 'PLAYING') return [];
     return getLegalMoves(gameState, gameState.currentPlayerIndex);
   }, [gameState]);
 
+  const trickToDisplay = (isCollecting || winningPlayerIndex !== null) && lastFinishedTrick ? lastFinishedTrick : gameState?.currentTrick;
+
+  const finalScore = useMemo(() => {
+    if (gameState?.phase === 'FINISHED') {
+      return {
+        score: calculateFinalScore(gameState),
+        success: evaluateContract(gameState)
+      };
+    }
+    return null;
+  }, [gameState]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col safe-area-padding overflow-x-hidden">
-      {/* Navbar - Sticky & Compact on Mobile */}
       <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 md:px-8 md:py-4 sticky top-0 z-[100] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-indigo-600 rounded flex items-center justify-center font-black text-white italic text-sm">M</div>
@@ -149,12 +200,7 @@ const App: React.FC = () => {
           !gameState ? (
             <div className="flex flex-col items-center justify-center h-[70vh] w-full animate-fadeIn px-4">
               <div className="bg-slate-900 p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] shadow-2xl border border-slate-800 text-center w-full max-w-md">
-                <div className="mb-6 opacity-20 flex justify-center gap-2">
-                  <div className="w-12 h-16 bg-white rounded-md transform -rotate-12 border border-slate-400" />
-                  <div className="w-12 h-16 bg-white rounded-md border border-slate-400" />
-                  <div className="w-12 h-16 bg-white rounded-md transform rotate-12 border border-slate-400" />
-                </div>
-                <h2 className="text-3xl md:text-5xl font-black mb-2 tracking-tighter">NOVÁ HRA</h2>
+                <h2 className="text-3xl md:text-5xl font-black mb-2 tracking-tighter">MARIÁŠ</h2>
                 <p className="text-slate-500 text-sm mb-8">Zvoľte herný režim</p>
                 <div className="space-y-3">
                   <button onClick={() => startNewGame(true)} className="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white py-4 rounded-2xl font-bold text-lg transition-all shadow-xl">Sólo vs Boti</button>
@@ -164,12 +210,9 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="w-full flex flex-col lg:flex-row gap-4 md:gap-6 animate-fadeIn h-full">
-              
-              {/* Game Table Area */}
               <div className="flex-grow flex flex-col gap-4">
                 <div className="relative aspect-[4/5] xs:aspect-[4/3] md:aspect-video lg:aspect-square xl:aspect-video w-full bg-[radial-gradient(circle_at_center,_#065f46_0%,_#064e3b_40%,_#022c22_100%)] rounded-[2rem] md:rounded-[3.5rem] p-4 md:p-8 border-4 border-slate-900 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col items-center justify-between overflow-hidden">
                   
-                  {/* Opponent Info (Top) */}
                   <div className="flex justify-between w-full px-4 md:px-12 opacity-60">
                     <div className="flex flex-col items-center">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 mb-1">Hráč 2</div>
@@ -189,7 +232,6 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Trick Area (Center) */}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     {gameState.phase === 'BIDDING' && gameState.currentPlayerIndex === 0 && (
                       <div className="bg-white/95 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-2xl z-50 text-slate-900 max-w-[90%] w-80 pointer-events-auto border-t-4 border-indigo-600 animate-fadeIn">
@@ -214,54 +256,54 @@ const App: React.FC = () => {
                       </div>
                     )}
 
-                    {gameState.phase === 'PLAYING' && gameState.currentTrick.cards.map((tc, idx) => {
+                    {gameState.phase === 'PLAYING' && trickToDisplay?.cards.map((tc, idx) => {
                       const angle = (tc.playerIndex * 120) - 90;
                       const rad = (angle * Math.PI) / 180;
                       const dist = window.innerWidth < 768 ? 45 : 80;
                       const x = Math.cos(rad) * dist;
                       const y = Math.sin(rad) * dist;
-                      
-                      // Find if this card triggered an announcement (Hláška)
-                      const player = gameState.players[tc.playerIndex];
-                      const announcement = player.announcements.find(a => a.suit === tc.card.suit);
-                      const isFirstCardOfTrick = idx === 0;
-
+                      const isWinner = winningPlayerIndex === tc.playerIndex;
                       return (
-                        <div key={idx} className="absolute transition-all duration-300 ease-out" style={{ transform: `translate(${x}px, ${y}px)` }}>
-                           <CardVisual card={tc.card} isTrump={tc.card.suit === gameState.trumpSuit} size={window.innerWidth < 768 ? 'sm' : 'md'} />
-                           <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-black/40 text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-tighter whitespace-nowrap">P{tc.playerIndex+1}</div>
-                           
-                           {/* Announcement Display (Hláška) */}
-                           {isFirstCardOfTrick && announcement && (
-                             <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[9px] font-black px-2 py-1 rounded-full shadow-lg animate-bounce border border-amber-300 z-20 whitespace-nowrap">
-                               HLÁŠKA {announcement.value}
-                             </div>
-                           )}
+                        <div key={`${tc.playerIndex}-${tc.card.suit}-${tc.card.rank}`} className={`absolute transition-all duration-500 ease-in-out ${isCollecting ? 'opacity-0 scale-50 -translate-y-20 blur-sm' : 'opacity-100 scale-100'}`} style={{ transform: !isCollecting ? `translate(${x}px, ${y}px)` : undefined }}>
+                           <CardVisual card={tc.card} isTrump={tc.card.suit === gameState.trumpSuit} isWinner={isWinner} size={window.innerWidth < 768 ? 'sm' : 'md'} />
+                           <div className={`absolute -bottom-5 left-1/2 -translate-x-1/2 bg-black/40 text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-tighter whitespace-nowrap ${isWinner ? 'bg-amber-600/60 ring-1 ring-amber-400' : ''}`}>
+                             {isWinner ? 'VÍŤAZ P' : 'P'}{tc.playerIndex+1}
+                           </div>
                         </div>
                       );
                     })}
 
-                    {gameState.phase === 'FINISHED' && (
-                      <div className="bg-white p-8 rounded-3xl shadow-2xl z-50 text-slate-900 text-center animate-fadeIn border-t-8 border-indigo-600 pointer-events-auto">
-                         <h2 className="text-2xl font-black mb-2 tracking-tighter">KONIEC</h2>
-                         <p className="text-xs text-slate-500 mb-6 font-bold uppercase tracking-widest">Hra bola vyhodnotená</p>
-                         <button onClick={() => setGameState(null)} className="w-full bg-slate-900 text-white py-3 px-8 rounded-xl font-bold hover:bg-indigo-600 transition-colors shadow-lg">Nová Hra</button>
+                    {gameState.phase === 'FINISHED' && finalScore && (
+                      <div className="bg-white p-8 rounded-3xl shadow-2xl z-50 text-slate-900 text-center animate-fadeIn border-t-8 border-indigo-600 pointer-events-auto max-w-sm w-full">
+                         <h2 className={`text-4xl font-black mb-2 tracking-tighter ${finalScore.success ? 'text-emerald-600' : 'text-red-600'}`}>
+                           {finalScore.success ? 'VÝHRA!' : 'PREHRA'}
+                         </h2>
+                         <div className="my-4 space-y-2 text-sm">
+                           <div className="flex justify-between border-b pb-1">
+                             <span className="text-slate-500 font-bold uppercase text-[10px]">Aktér body</span>
+                             <span className="font-bold">{finalScore.score.actorPoints} + {finalScore.score.actorAnnouncements} (hlášky)</span>
+                           </div>
+                           <div className="flex justify-between border-b pb-1">
+                             <span className="text-slate-500 font-bold uppercase text-[10px]">Obrana body</span>
+                             <span className="font-bold">{finalScore.score.defensePoints} + {finalScore.score.defenseAnnouncements}</span>
+                           </div>
+                         </div>
+                         <button onClick={() => startNewGame(isSolo)} className="w-full bg-slate-900 text-white py-4 px-8 rounded-2xl font-bold hover:bg-indigo-600 transition-colors shadow-xl active:scale-95">Nová Hra</button>
                       </div>
                     )}
                   </div>
 
-                  {/* Player Hand (Bottom) */}
                   <div className="w-full flex flex-col items-center mt-auto pb-2 md:pb-4 z-10">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-[10px] font-black text-emerald-300/40 uppercase tracking-[0.2em]">Vaše karty</span>
-                      {gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING' && (
+                      {gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING' && !isCollecting && winningPlayerIndex === null && (
                         <div className="w-2 h-2 bg-indigo-400 rounded-full animate-ping" />
                       )}
                     </div>
                     <div className="flex flex-wrap justify-center gap-0.5 md:gap-1 max-w-full px-2">
                        {gameState.players[0].hand.map((c, i) => {
                          const isLegal = legalMoves.some(m => m.suit === c.suit && m.rank === c.rank);
-                         const isTurn = gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING';
+                         const isTurn = gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING' && !isCollecting && winningPlayerIndex === null;
                          return (
                            <CardVisual 
                              key={i} card={c} isTrump={c.suit === gameState.trumpSuit} 
@@ -276,7 +318,6 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Sidebar / Info Panel - Collapsible or Bottom on Mobile */}
               <aside className="w-full lg:w-80 flex flex-col gap-4">
                 <div className="grid grid-cols-2 lg:grid-cols-1 gap-4">
                   <div className="bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-800 shadow-xl">
@@ -292,7 +333,6 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  
                   <div className="bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-800 shadow-xl">
                     <h3 className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mb-3 opacity-60">Hráči</h3>
                     <div className="space-y-2">
@@ -316,7 +356,6 @@ const App: React.FC = () => {
                      ))}
                    </div>
                 </div>
-
                 <button onClick={() => setGameState(null)} className="w-full py-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-700 hover:text-slate-400 transition-colors">Ukončiť hru</button>
               </aside>
             </div>
@@ -325,7 +364,7 @@ const App: React.FC = () => {
         
         {activeTab === 'spec' && (
           <div className="max-w-3xl w-full py-4 md:py-8 space-y-6 md:space-y-8 animate-fadeIn px-2">
-            <h2 className="text-2xl md:text-3xl font-black border-b border-slate-800 pb-4 tracking-tighter">ŠPECIFIKÁCIA MARIÁŠA</h2>
+            <h2 className="text-2xl md:text-3xl font-black border-b border-slate-800 pb-4 tracking-tighter uppercase">Špecifikácia Mariáša</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
               {DICTIONARY.map(d => (
                 <div key={d.term} className="bg-slate-900 p-4 md:p-5 rounded-2xl border border-slate-800 hover:border-indigo-900 transition-colors">
@@ -342,7 +381,7 @@ const App: React.FC = () => {
              <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
                <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
                  <h3 className="text-xs font-black tracking-widest uppercase opacity-50">Logika Enginu</h3>
-                 <span className="text-[10px] bg-emerald-900 text-emerald-400 px-2 py-0.5 rounded-full font-bold">Stable v1.2</span>
+                 <span className="text-[10px] bg-emerald-900 text-emerald-400 px-2 py-0.5 rounded-full font-bold">Stable v1.3</span>
                </div>
                <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto font-mono text-[10px] md:text-xs">
                   {runTests().map((t, i) => (
