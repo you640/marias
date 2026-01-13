@@ -21,6 +21,17 @@ export interface Trick {
   cards: { playerIndex: number; card: Card }[];
 }
 
+export interface ScoreRecord {
+  id: string;
+  timestamp: number;
+  actorIndex: number;
+  contract: ContractType;
+  flekLevel: number; // 0=Dobrá, 1=Flek, 2=Re...
+  isWon: boolean;
+  isAnnounced: boolean;
+  value: number; // Single unit value (how much 1 player pays)
+}
+
 export interface GameState {
   players: PlayerState[];
   talon: Card[];

@@ -4,6 +4,7 @@ export const POINTS_ULTIMO = 10;
 export const ANNOUNCEMENT_NORMAL = 20;
 export const ANNOUNCEMENT_TRUMP = 40;
 
+// Base values in units (cents/koruny)
 export const CONTRACT_MULTIPLIERS = {
   Hra: 1,
   Sedma: 2,
