@@ -1,7 +1,8 @@
 
 import { getLegalMoves } from '../engine/legalMoves';
 import { applyMove } from '../engine/applyMove';
-import { createInitialState, GameState } from '../engine/state';
+import { createInitialState } from '../engine/state';
+import { GameState } from '../types';
 import { determineTrickWinner, calculateFinalScore } from '../engine/scoring';
 
 export const runTests = () => {

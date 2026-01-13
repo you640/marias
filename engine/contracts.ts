@@ -1,5 +1,5 @@
 
-import { GameState } from './state';
+import { GameState } from '../types';
 import { calculateFinalScore } from './scoring';
 
 export const evaluateContract = (state: GameState): boolean => {

@@ -1,23 +1,20 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-/* Import types and utilities from their respective definition files to fix export errors */
-import { GameState, createInitialState, ContractType, PlayerState } from './engine/state';
-import { Card, Suit, Rank, SUITS } from './engine/cards';
+import { GameState, Card, Suit, ContractType } from './types';
+import { createInitialState } from './engine/state';
 import { createDeck, shuffleDeck } from './engine/deck';
 import { getLegalMoves } from './engine/legalMoves';
 import { applyMove } from './engine/applyMove';
 import { calculateFinalScore } from './engine/scoring';
 import { getBotMove } from './engine/bot';
+import { SUITS } from './engine/cards';
 import { 
   DICTIONARY, 
-  JSON_RULESET, 
-  SUIT_ORDER, 
-  BETL_DURCH_ORDER, 
-  LEGAL_MOVE_EXAMPLES 
+  JSON_RULESET 
 } from './constants';
 import { runTests } from './tests/all.test';
 
-// --- UI Components ---
+// --- Sub-components ---
 
 const CardVisual: React.FC<{ 
   card: Card; 
@@ -25,7 +22,7 @@ const CardVisual: React.FC<{
   disabled?: boolean; 
   isTrump?: boolean;
   highlighted?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
 }> = ({ card, onClick, disabled, isTrump, highlighted, size = 'md' }) => {
   const getSuitSymbol = (s: Suit) => {
     switch(s) {
@@ -40,8 +37,9 @@ const CardVisual: React.FC<{
   const colorClass = isRed ? 'text-red-600' : 'text-slate-900';
   
   const sizeClasses = {
-    sm: 'w-10 h-14 text-xs',
-    md: 'w-14 h-20 md:w-16 md:h-24 text-sm md:text-lg',
+    xs: 'w-8 h-12 text-[9px]',
+    sm: 'w-10 h-14 md:w-12 md:h-18 text-[10px] md:text-xs',
+    md: 'w-12 h-18 md:w-16 md:h-24 text-xs md:text-lg',
     lg: 'w-20 h-28 md:w-24 md:h-36 text-xl md:text-2xl'
   };
 
@@ -49,130 +47,74 @@ const CardVisual: React.FC<{
     <div 
       onClick={!disabled ? onClick : undefined}
       className={`
-        relative flex flex-col items-center justify-center bg-white border-2 rounded-lg m-0.5 cursor-pointer transition-all
+        relative flex flex-col items-center justify-center bg-white border rounded-md md:rounded-lg m-0.5 cursor-pointer transition-all duration-200 select-none
         ${sizeClasses[size]}
-        ${disabled ? 'opacity-40 grayscale cursor-not-allowed border-slate-200' : 'hover:-translate-y-2 hover:shadow-xl border-slate-300'}
-        ${isTrump ? 'border-amber-400 bg-amber-50 shadow-inner ring-1 ring-amber-200' : ''}
-        ${highlighted ? 'ring-4 ring-indigo-400 border-indigo-500 scale-105 z-10 shadow-lg' : ''}
+        ${disabled ? 'opacity-30 grayscale cursor-not-allowed border-slate-200' : 'active:scale-95 md:hover:-translate-y-2 md:hover:shadow-xl border-slate-300'}
+        ${isTrump ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-200 shadow-[inset_0_0_10px_rgba(251,191,36,0.1)]' : ''}
+        ${highlighted ? 'ring-2 md:ring-4 ring-indigo-500 border-indigo-500 z-10 scale-105' : ''}
       `}
     >
       <span className={`font-bold leading-none ${colorClass}`}>{card.rank}</span>
-      <span className={`${size === 'sm' ? 'text-lg' : 'text-3xl'} leading-none ${colorClass}`}>{getSuitSymbol(card.suit)}</span>
-      {isTrump && <div className="absolute top-0 right-1 text-[8px] md:text-[10px] text-amber-600 font-bold uppercase">T</div>}
+      <span className={`${size === 'xs' || size === 'sm' ? 'text-lg' : 'text-2xl md:text-3xl'} leading-none ${colorClass}`}>{getSuitSymbol(card.suit)}</span>
+      {isTrump && <div className="absolute top-0 right-0.5 text-[7px] md:text-[10px] text-amber-600 font-black">T</div>}
     </div>
   );
 };
-
-const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <section className="mb-12 animate-fadeIn">
-    <h2 className="text-2xl font-bold text-slate-100 mb-6 border-b border-slate-700 pb-2">{title}</h2>
-    {children}
-  </section>
-);
-
-const GameLog: React.FC<{ messages: string[] }> = ({ messages }) => {
-  useEffect(() => {
-    const el = document.getElementById('log-container');
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages]);
-
-  return (
-    <div id="log-container" className="bg-slate-900 text-indigo-300 p-4 rounded-xl font-mono text-[10px] md:text-xs h-40 overflow-y-auto border border-slate-700 shadow-inner scroll-smooth">
-      {messages.map((m, i) => (
-        <div key={i} className="mb-1 border-l-2 border-indigo-700 pl-2 opacity-90 hover:opacity-100 transition-opacity">
-          {m}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// --- Main App ---
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'game' | 'spec' | 'json' | 'engine'>('game');
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [log, setLog] = useState<string[]>(["Vitajte v Mariáši. Vyberte režim a začnite hrať."]);
+  const [log, setLog] = useState<string[]>(["Vitajte v Mariáši."]);
   const [isSolo, setIsSolo] = useState(true);
-  const [testResults, setTestResults] = useState<string[]>([]);
 
   const addLog = useCallback((msg: string) => {
-    setLog(prev => [...prev.slice(-99), msg]);
+    setLog(prev => [...prev.slice(-29), msg]);
   }, []);
 
   const startNewGame = useCallback((solo: boolean) => {
     const seed = Date.now();
     const deck = shuffleDeck(createDeck(), seed);
     const state = createInitialState(seed);
-    
-    // Mariáš Deal: 7 to forhont, 5 to others, then 5 each
-    state.players[0].hand = deck.slice(0, 7);
-    state.players[1].hand = deck.slice(7, 12);
-    state.players[2].hand = deck.slice(12, 17);
-    const rest = deck.slice(17);
-    state.players[0].hand.push(...rest.slice(0, 5));
-    state.players[1].hand.push(...rest.slice(5, 10));
-    state.players[2].hand.push(...rest.slice(10, 15));
-    state.talon = rest.slice(15, 17);
-    
+    state.players[0].hand = deck.slice(0, 12);
+    state.players[1].hand = deck.slice(12, 22);
+    state.players[2].hand = deck.slice(22, 32);
+    state.talon = state.players[0].hand.splice(10, 2);
     state.phase = 'BIDDING';
-    state.activePlayerIndex = 0; // Forhont starts
-    
     setGameState(state);
     setIsSolo(solo);
     setActiveTab('game');
-    setLog(["Nová hra. Hráč 1 (Forhont) volí tromfovú farbu."]);
-  }, []);
+    addLog("Hráč 1 volí tromf.");
+  }, [addLog]);
 
   const selectTrump = (suit: Suit) => {
     if (!gameState) return;
-    const nextState = { ...gameState, trumpSuit: suit };
-    setGameState(nextState);
-    addLog(`Zvolený tromf: ${suit}. Teraz vyberte typ záväzku.`);
+    setGameState({ ...gameState, trumpSuit: suit });
+    addLog(`Tromf: ${suit}. Zvoľte záväzok.`);
   };
 
   const selectContract = (type: ContractType) => {
     if (!gameState) return;
-    const nextState = { ...gameState, contract: type, phase: 'PLAYING' as const };
-    setGameState(nextState);
-    addLog(`Hrá sa záväzok: ${type}. Začína Hráč 1.`);
+    setGameState({ ...gameState, contract: type, phase: 'PLAYING' });
+    addLog(`Hrá sa ${type}.`);
   };
 
   const handlePlayerMove = useCallback((card: Card) => {
     if (!gameState || gameState.phase !== 'PLAYING') return;
-    
     try {
       const nextState = applyMove(gameState, card);
-      const playerNum = gameState.currentPlayerIndex + 1;
-      addLog(`Hráč ${playerNum}: ${card.rank} ${card.suit}`);
-      
-      if (nextState.currentTrick.cards.length === 0) {
-        // Trick just finished
-        const lastTrickWinner = nextState.currentPlayerIndex;
-        addLog(`>>> Štych získal Hráč ${lastTrickWinner + 1}`);
-      }
-
-      if (nextState.phase === 'FINISHED') {
-        addLog("Hra skončila. Pozrite si výsledné skóre.");
-      }
-
+      addLog(`P${gameState.currentPlayerIndex + 1}: ${card.rank}${card.suit[0]}`);
       setGameState(nextState);
     } catch (e: any) {
-      addLog(`Chyba: ${e.message}`);
+      addLog(`! ${e.message}`);
     }
   }, [gameState, addLog]);
 
-  // Bot logic
   useEffect(() => {
-    if (isSolo && gameState && gameState.phase === 'PLAYING' && gameState.currentPlayerIndex !== 0) {
+    if (isSolo && gameState?.phase === 'PLAYING' && gameState.currentPlayerIndex !== 0) {
       const timer = setTimeout(() => {
-        try {
-          const botCard = getBotMove(gameState, gameState.currentPlayerIndex);
-          handlePlayerMove(botCard);
-        } catch (e) {
-          console.error("Bot error", e);
-        }
-      }, 1000);
+        const botCard = getBotMove(gameState, gameState.currentPlayerIndex);
+        handlePlayerMove(botCard);
+      }, 600);
       return () => clearTimeout(timer);
     }
   }, [gameState, isSolo, handlePlayerMove]);
@@ -182,278 +124,227 @@ const App: React.FC = () => {
     return getLegalMoves(gameState, gameState.currentPlayerIndex);
   }, [gameState]);
 
-  // --- Render Sections ---
-
-  const renderSpec = () => (
-    <div className="max-w-4xl mx-auto py-8">
-      <Section title="1. Slovník pojmov">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {DICTIONARY.map(item => (
-            <div key={item.term} className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-              <dt className="font-bold text-indigo-400 text-lg">{item.term}</dt>
-              <dd className="text-slate-300 mt-1 text-sm">{item.definition}</dd>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="2. Model balíčka">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-            <h3 className="font-bold mb-4 text-amber-400">Tromfová hra</h3>
-            <div className="flex flex-wrap gap-1">
-              {SUIT_ORDER.map(r => <CardVisual key={r} card={{ suit: 'Srdce', rank: r }} size="sm" />)}
-            </div>
-          </div>
-          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-            <h3 className="font-bold mb-4 text-blue-400">Betl / Durch</h3>
-            <div className="flex flex-wrap gap-1">
-              {BETL_DURCH_ORDER.map(r => <CardVisual key={r} card={{ suit: 'Listy', rank: r }} size="sm" />)}
-            </div>
-          </div>
-        </div>
-      </Section>
-    </div>
-  );
-
-  const renderGame = () => {
-    if (!gameState) {
-      return (
-        <div className="flex flex-col items-center justify-center h-[70vh] text-center animate-fadeIn">
-          <div className="bg-slate-800 p-12 rounded-[3rem] shadow-2xl border border-slate-700 max-w-lg w-full">
-            <h1 className="text-6xl font-black text-white mb-4 tracking-tighter">MARIÁŠ</h1>
-            <p className="text-slate-400 mb-10 text-lg">PWA Kartová hra pre 3 hráčov</p>
-            <div className="space-y-4">
-              <button 
-                onClick={() => startNewGame(true)} 
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-5 rounded-2xl font-bold text-xl shadow-lg transition-all hover:scale-[1.02] active:scale-95"
-              >
-                Sólo (vs Boti)
-              </button>
-              <button 
-                onClick={() => startNewGame(false)} 
-                className="w-full bg-slate-700 hover:bg-slate-600 text-white py-5 rounded-2xl font-bold text-xl transition-all"
-              >
-                Lokálne (3 Hráči)
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    const score = gameState.phase === 'FINISHED' ? calculateFinalScore(gameState) : null;
-
-    return (
-      <div className="flex flex-col h-full animate-fadeIn">
-        <div className="flex-grow flex flex-col md:flex-row gap-6 h-full">
-          
-          {/* Game Board (Left) */}
-          <div className="flex-grow bg-[radial-gradient(circle_at_center,_#064e3b_0%,_#022c22_100%)] rounded-[2.5rem] relative flex flex-col items-center justify-between p-6 shadow-2xl border-4 border-slate-800 overflow-hidden">
-            
-            {/* Top Opponent */}
-            <div className="flex flex-col items-center opacity-70 scale-90">
-              <div className="text-emerald-200 text-xs font-bold mb-2 uppercase tracking-widest">Hráč 2</div>
-              <div className="flex -space-x-8">
-                {[...Array(gameState.players[1].hand.length)].map((_, i) => (
-                  <div key={i} className="w-10 h-16 bg-emerald-950 border-2 border-emerald-800 rounded-lg shadow-xl" />
-                ))}
-              </div>
-            </div>
-
-            {/* Trick / Selection Area */}
-            <div className="relative w-full h-80 flex items-center justify-center">
-              
-              {gameState.phase === 'BIDDING' && gameState.currentPlayerIndex === 0 && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center p-4">
-                  <div className="bg-white p-8 rounded-3xl shadow-2xl text-slate-900 w-full max-w-md animate-fadeIn">
-                    {!gameState.trumpSuit ? (
-                      <>
-                        <h3 className="text-2xl font-black mb-6 text-center">Vyberte tromf</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          {SUITS.map(s => (
-                            <button 
-                              key={s} onClick={() => selectTrump(s)}
-                              className="p-6 bg-slate-100 hover:bg-indigo-600 hover:text-white rounded-2xl transition font-bold text-lg shadow-sm"
-                            >
-                              {s}
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <h3 className="text-2xl font-black mb-6 text-center">Vyberte záväzok</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          {['Hra', 'Sedma', 'Sto', 'Betl', 'Durch'].map(c => (
-                            <button 
-                              key={c} onClick={() => selectContract(c as ContractType)}
-                              className="p-4 bg-slate-100 hover:bg-emerald-600 hover:text-white rounded-2xl transition font-bold text-lg"
-                            >
-                              {c}
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {gameState.phase === 'PLAYING' && (
-                <div className="relative w-full h-full flex items-center justify-center">
-                  {gameState.currentTrick.cards.map((tc, i) => {
-                    const angle = (tc.playerIndex * 120) - 90;
-                    const rad = (angle * Math.PI) / 180;
-                    const dist = window.innerWidth < 768 ? 60 : 100;
-                    const x = Math.cos(rad) * dist;
-                    const y = Math.sin(rad) * dist;
-                    return (
-                      <div key={i} className="absolute transition-all duration-700" style={{ transform: `translate(${x}px, ${y}px)` }}>
-                        <CardVisual card={tc.card} isTrump={tc.card.suit === gameState.trumpSuit} size="md" />
-                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black/60 text-[10px] font-bold px-2 py-0.5 rounded-full text-white uppercase tracking-tighter">P{tc.playerIndex+1}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {gameState.phase === 'FINISHED' && score && (
-                <div className="bg-white p-8 rounded-3xl shadow-2xl z-50 text-slate-900 max-w-sm w-full animate-fadeIn border-t-8 border-indigo-600">
-                  <h3 className="text-4xl font-black mb-6 text-center tracking-tighter">VÝSLEDKY</h3>
-                  <div className="space-y-4 mb-8">
-                    <div className="flex justify-between items-center text-lg">
-                      <span className="font-bold text-slate-500">Aktér (P1)</span>
-                      <span className="font-black text-2xl">{score.actorPoints + score.actorAnnouncements}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-lg">
-                      <span className="font-bold text-slate-500">Obrana (P2+P3)</span>
-                      <span className="font-black text-2xl">{score.defensePoints + score.defenseAnnouncements}</span>
-                    </div>
-                  </div>
-                  <div className={`py-4 px-6 rounded-2xl text-center font-black text-xl mb-6 ${score.winner === 'actor' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                    {score.winner === 'actor' ? 'HRÁČ 1 VYHRAL!' : 'OBRANA VYHRALA!'}
-                  </div>
-                  <button onClick={() => setGameState(null)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold shadow-lg active:scale-95 transition">Nová Hra</button>
-                </div>
-              )}
-            </div>
-
-            {/* Player Hand (Bottom) */}
-            <div className="w-full flex flex-col items-center">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-xs font-bold text-emerald-300/60 uppercase tracking-widest">Tvoja ruka</span>
-                {gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING' && (
-                  <span className="bg-indigo-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse font-bold">Si na ťahu</span>
-                )}
-              </div>
-              <div className="flex flex-wrap justify-center gap-1 max-w-full overflow-x-auto pb-2 px-2 scrollbar-hide">
-                {gameState.players[0].hand.map((c, i) => {
-                  const isLegal = legalMoves.some(m => m.suit === c.suit && m.rank === c.rank);
-                  const isTurn = gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING';
-                  return (
-                    <CardVisual 
-                      key={i} card={c} isTrump={c.suit === gameState.trumpSuit} 
-                      disabled={!isTurn || !isLegal} highlighted={isTurn && isLegal}
-                      onClick={() => handlePlayerMove(c)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Sidebar (Right) */}
-          <div className="w-full md:w-80 flex flex-col gap-6 h-full">
-            <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
-              <h3 className="text-indigo-400 font-bold uppercase text-xs tracking-widest mb-4">Informácie</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-end border-b border-slate-700 pb-2">
-                  <span className="text-slate-400 text-sm">Tromf</span>
-                  <span className="text-2xl font-black text-amber-400 leading-none">{gameState.trumpSuit || '-'}</span>
-                </div>
-                <div className="flex justify-between items-end border-b border-slate-700 pb-2">
-                  <span className="text-slate-400 text-sm">Záväzok</span>
-                  <span className="text-lg font-bold text-white leading-none">{gameState.contract}</span>
-                </div>
-                <div className="space-y-2 mt-4">
-                  {gameState.players.map((p, i) => (
-                    <div key={i} className={`flex justify-between items-center p-2 rounded-xl text-sm ${gameState.currentPlayerIndex === i ? 'bg-indigo-900/40 ring-1 ring-indigo-500' : 'bg-slate-900/20'}`}>
-                      <span className="font-medium text-slate-300">Hráč {i+1}</span>
-                      <span className="text-xs font-mono opacity-60">{p.collectedCards.length/3} štychov</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <GameLog messages={log} />
-            <button onClick={() => setGameState(null)} className="text-xs text-slate-600 hover:text-slate-300 transition-colors uppercase tracking-widest font-bold">Ukončiť hru</button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      
-      {/* Navigation */}
-      <header className="bg-slate-900/50 backdrop-blur-md sticky top-0 z-[100] border-b border-slate-800">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-white italic">M</div>
-            <h1 className="text-xl font-black tracking-tighter">MARIÁŠ <span className="text-indigo-500">PRO</span></h1>
-          </div>
-          <nav className="hidden md:flex gap-1">
-            {[
-              { id: 'game', label: 'Hra' },
-              { id: 'spec', label: 'Pravidlá' },
-              { id: 'json', label: 'API' },
-              { id: 'engine', label: 'Testy' },
-            ].map(tab => (
-              <button 
-                key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-                className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-100'}`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+    <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col safe-area-padding overflow-x-hidden">
+      {/* Navbar - Sticky & Compact on Mobile */}
+      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 md:px-8 md:py-4 sticky top-0 z-[100] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-indigo-600 rounded flex items-center justify-center font-black text-white italic text-sm">M</div>
+          <h1 className="text-lg md:text-xl font-black tracking-tighter">MARIÁŠ <span className="text-indigo-500 hidden xs:inline">PRO</span></h1>
         </div>
+        <nav className="flex gap-1 md:gap-2">
+          {['game', 'spec', 'engine'].map(t => (
+            <button 
+              key={t} onClick={() => setActiveTab(t as any)} 
+              className={`px-3 py-1.5 rounded-full text-[10px] md:text-xs font-bold uppercase transition-all ${activeTab === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              {t === 'game' ? 'Hra' : t === 'spec' ? 'Pravidlá' : 'Testy'}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-grow p-4 md:p-8 max-w-7xl mx-auto w-full">
-        {activeTab === 'game' && renderGame()}
-        {activeTab === 'spec' && renderSpec()}
-        {activeTab === 'json' && (
-          <div className="max-w-4xl mx-auto py-8">
-            <Section title="JSON Ruleset">
-              <div className="bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
-                <pre className="p-8 text-indigo-300 font-mono text-sm overflow-x-auto leading-relaxed">
-                  {JSON.stringify(JSON_RULESET, null, 2)}
-                </pre>
+      <main className="flex-grow flex flex-col items-center p-2 md:p-6 w-full max-w-7xl mx-auto">
+        {activeTab === 'game' && (
+          !gameState ? (
+            <div className="flex flex-col items-center justify-center h-[70vh] w-full animate-fadeIn px-4">
+              <div className="bg-slate-900 p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] shadow-2xl border border-slate-800 text-center w-full max-w-md">
+                <div className="mb-6 opacity-20 flex justify-center gap-2">
+                  <div className="w-12 h-16 bg-white rounded-md transform -rotate-12 border border-slate-400" />
+                  <div className="w-12 h-16 bg-white rounded-md border border-slate-400" />
+                  <div className="w-12 h-16 bg-white rounded-md transform rotate-12 border border-slate-400" />
+                </div>
+                <h2 className="text-3xl md:text-5xl font-black mb-2 tracking-tighter">NOVÁ HRA</h2>
+                <p className="text-slate-500 text-sm mb-8">Zvoľte herný režim</p>
+                <div className="space-y-3">
+                  <button onClick={() => startNewGame(true)} className="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white py-4 rounded-2xl font-bold text-lg transition-all shadow-xl">Sólo vs Boti</button>
+                  <button onClick={() => startNewGame(false)} className="w-full bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 py-4 rounded-2xl font-bold text-lg transition-all">Lokálne (3 Hráči)</button>
+                </div>
               </div>
-            </Section>
+            </div>
+          ) : (
+            <div className="w-full flex flex-col lg:flex-row gap-4 md:gap-6 animate-fadeIn h-full">
+              
+              {/* Game Table Area */}
+              <div className="flex-grow flex flex-col gap-4">
+                <div className="relative aspect-[4/5] xs:aspect-[4/3] md:aspect-video lg:aspect-square xl:aspect-video w-full bg-[radial-gradient(circle_at_center,_#065f46_0%,_#064e3b_40%,_#022c22_100%)] rounded-[2rem] md:rounded-[3.5rem] p-4 md:p-8 border-4 border-slate-900 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col items-center justify-between overflow-hidden">
+                  
+                  {/* Opponent Info (Top) */}
+                  <div className="flex justify-between w-full px-4 md:px-12 opacity-60">
+                    <div className="flex flex-col items-center">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 mb-1">Hráč 2</div>
+                      <div className="flex -space-x-4 md:-space-x-6">
+                        {[...Array(gameState.players[1].hand.length)].map((_, i) => (
+                          <div key={i} className="w-6 h-9 md:w-8 md:h-12 bg-emerald-950 border border-emerald-800 rounded shadow-md" />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 mb-1">Hráč 3</div>
+                      <div className="flex -space-x-4 md:-space-x-6">
+                        {[...Array(gameState.players[2].hand.length)].map((_, i) => (
+                          <div key={i} className="w-6 h-9 md:w-8 md:h-12 bg-emerald-950 border border-emerald-800 rounded shadow-md" />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Trick Area (Center) */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    {gameState.phase === 'BIDDING' && gameState.currentPlayerIndex === 0 && (
+                      <div className="bg-white/95 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-2xl z-50 text-slate-900 max-w-[90%] w-80 pointer-events-auto border-t-4 border-indigo-600 animate-fadeIn">
+                        <h3 className="text-lg md:text-xl font-black mb-4 text-center tracking-tight">{!gameState.trumpSuit ? 'VOĽBA TROMFU' : 'VOĽBA ZÁVÄZKU'}</h3>
+                        {!gameState.trumpSuit ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            {SUITS.map(s => (
+                              <button key={s} onClick={() => selectTrump(s)} className="p-3 md:p-4 bg-slate-100 hover:bg-indigo-600 hover:text-white rounded-xl font-bold transition-all active:scale-95 text-sm">
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {['Hra', 'Sedma', 'Sto', 'Betl', 'Durch'].map(c => (
+                              <button key={c} onClick={() => selectContract(c as ContractType)} className="p-3 md:p-4 bg-slate-100 hover:bg-emerald-600 hover:text-white rounded-xl font-bold transition-all active:scale-95 text-sm">
+                                {c}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {gameState.phase === 'PLAYING' && gameState.currentTrick.cards.map((tc, idx) => {
+                      const angle = (tc.playerIndex * 120) - 90;
+                      const rad = (angle * Math.PI) / 180;
+                      const dist = window.innerWidth < 768 ? 45 : 80;
+                      const x = Math.cos(rad) * dist;
+                      const y = Math.sin(rad) * dist;
+                      return (
+                        <div key={idx} className="absolute transition-all duration-300 ease-out" style={{ transform: `translate(${x}px, ${y}px)` }}>
+                           <CardVisual card={tc.card} isTrump={tc.card.suit === gameState.trumpSuit} size={window.innerWidth < 768 ? 'sm' : 'md'} />
+                           <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-black/40 text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-tighter">P{tc.playerIndex+1}</div>
+                        </div>
+                      );
+                    })}
+
+                    {gameState.phase === 'FINISHED' && (
+                      <div className="bg-white p-8 rounded-3xl shadow-2xl z-50 text-slate-900 text-center animate-fadeIn border-t-8 border-indigo-600 pointer-events-auto">
+                         <h2 className="text-2xl font-black mb-2 tracking-tighter">KONIEC</h2>
+                         <p className="text-xs text-slate-500 mb-6 font-bold uppercase tracking-widest">Hra bola vyhodnotená</p>
+                         <button onClick={() => setGameState(null)} className="w-full bg-slate-900 text-white py-3 px-8 rounded-xl font-bold hover:bg-indigo-600 transition-colors shadow-lg">Nová Hra</button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Player Hand (Bottom) */}
+                  <div className="w-full flex flex-col items-center mt-auto pb-2 md:pb-4 z-10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[10px] font-black text-emerald-300/40 uppercase tracking-[0.2em]">Vaše karty</span>
+                      {gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING' && (
+                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-ping" />
+                      )}
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-0.5 md:gap-1 max-w-full px-2">
+                       {gameState.players[0].hand.map((c, i) => {
+                         const isLegal = legalMoves.some(m => m.suit === c.suit && m.rank === c.rank);
+                         const isTurn = gameState.currentPlayerIndex === 0 && gameState.phase === 'PLAYING';
+                         return (
+                           <CardVisual 
+                             key={i} card={c} isTrump={c.suit === gameState.trumpSuit} 
+                             disabled={!isTurn || !isLegal} highlighted={isTurn && isLegal}
+                             onClick={() => handlePlayerMove(c)}
+                             size={window.innerWidth < 480 ? 'sm' : 'md'}
+                           />
+                         );
+                       })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar / Info Panel - Collapsible or Bottom on Mobile */}
+              <aside className="w-full lg:w-80 flex flex-col gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-1 gap-4">
+                  <div className="bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-800 shadow-xl">
+                    <h3 className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mb-3 opacity-60">Aktuálny Stav</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-end">
+                        <span className="text-slate-500 text-xs">Tromf:</span>
+                        <span className="text-lg font-black text-amber-400 leading-none">{gameState.trumpSuit || '-'}</span>
+                      </div>
+                      <div className="flex justify-between items-end">
+                        <span className="text-slate-500 text-xs">Záväzok:</span>
+                        <span className="text-sm font-bold text-white leading-none">{gameState.contract}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-800 shadow-xl">
+                    <h3 className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mb-3 opacity-60">Hráči</h3>
+                    <div className="space-y-2">
+                      {gameState.players.map(p => (
+                        <div key={p.id} className={`flex justify-between items-center p-2 rounded-lg transition-colors ${gameState.currentPlayerIndex === p.id ? 'bg-indigo-600/20 ring-1 ring-indigo-500/50' : 'bg-slate-950/40'}`}>
+                           <span className={`text-xs font-bold ${gameState.currentPlayerIndex === p.id ? 'text-white' : 'text-slate-500'}`}>P{p.id + 1}</span>
+                           <span className="text-[10px] font-mono opacity-40">{p.collectedCards.length / 3} štychov</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-grow bg-slate-900 text-indigo-300/80 p-4 rounded-2xl md:rounded-3xl font-mono text-[9px] md:text-[10px] h-32 md:h-48 lg:h-64 overflow-y-auto border border-slate-800 scrollbar-hide shadow-inner">
+                   <div className="flex flex-col-reverse">
+                     {log.map((m, i) => (
+                       <div key={i} className={`mb-1.5 pb-1 border-b border-slate-800/50 flex gap-2 ${i === log.length - 1 ? 'text-indigo-200 font-bold' : 'opacity-60'}`}>
+                         <span className="opacity-30">[{i+1}]</span>
+                         <span>{m}</span>
+                       </div>
+                     ))}
+                   </div>
+                </div>
+
+                <button onClick={() => setGameState(null)} className="w-full py-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-700 hover:text-slate-400 transition-colors">Ukončiť hru</button>
+              </aside>
+            </div>
+          )
+        )}
+        
+        {activeTab === 'spec' && (
+          <div className="max-w-3xl w-full py-4 md:py-8 space-y-6 md:space-y-8 animate-fadeIn px-2">
+            <h2 className="text-2xl md:text-3xl font-black border-b border-slate-800 pb-4 tracking-tighter">ŠPECIFIKÁCIA MARIÁŠA</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+              {DICTIONARY.map(d => (
+                <div key={d.term} className="bg-slate-900 p-4 md:p-5 rounded-2xl border border-slate-800 hover:border-indigo-900 transition-colors">
+                   <dt className="text-indigo-400 font-bold text-base md:text-lg mb-1">{d.term}</dt>
+                   <dd className="text-slate-400 text-xs md:text-sm leading-relaxed">{d.definition}</dd>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
         {activeTab === 'engine' && (
-          <div className="max-w-4xl mx-auto py-8">
-            <Section title="Engine Lab (Testy)">
-              <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-inner space-y-2">
-                {runTests().map((res, i) => (
-                  <div key={i} className={`p-3 rounded-lg font-mono text-sm ${res.includes('✅') ? 'bg-emerald-950/40 text-emerald-400' : 'bg-red-950/40 text-red-400'}`}>
-                    {res}
-                  </div>
-                ))}
-              </div>
-            </Section>
+          <div className="max-w-2xl w-full py-4 md:py-8 animate-fadeIn px-2">
+             <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+               <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+                 <h3 className="text-xs font-black tracking-widest uppercase opacity-50">Logika Enginu</h3>
+                 <span className="text-[10px] bg-emerald-900 text-emerald-400 px-2 py-0.5 rounded-full font-bold">Stable v1.2</span>
+               </div>
+               <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto font-mono text-[10px] md:text-xs">
+                  {runTests().map((t, i) => (
+                    <div key={i} className={`p-3 rounded-xl ${t.includes('✅') ? 'bg-emerald-950/20 text-emerald-400' : 'bg-red-950/20 text-red-400'} border border-white/5`}>
+                      {t}
+                    </div>
+                  ))}
+               </div>
+             </div>
           </div>
         )}
       </main>
 
-      <footer className="py-8 text-center text-slate-600 text-xs border-t border-slate-900">
-        © 2025 MARIÁŠ PRO • PWA ENGINE v1.2.4 • Senior Engineering
+      <footer className="py-6 text-center border-t border-slate-900/50">
+        <p className="text-[10px] font-bold text-slate-700 uppercase tracking-[0.4em]">Mariáš Pro • PWA Edition</p>
       </footer>
     </div>
   );

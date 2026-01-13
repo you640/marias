@@ -1,6 +1,5 @@
 
-import { GameState } from './state';
-import { Card } from './cards';
+import { GameState, Card } from '../types';
 import { getLegalMoves } from './legalMoves';
 import { determineTrickWinner } from './scoring';
 import { ANNOUNCEMENT_NORMAL, ANNOUNCEMENT_TRUMP } from './rules';

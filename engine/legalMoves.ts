@@ -1,6 +1,6 @@
 
-import { Card, getPriorityIndex } from './cards';
-import { GameState } from './state';
+import { Card, GameState } from '../types';
+import { getPriorityIndex } from './cards';
 
 export const getLegalMoves = (state: GameState, playerIndex: number): Card[] => {
   const hand = state.players[playerIndex].hand;

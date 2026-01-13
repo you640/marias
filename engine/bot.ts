@@ -1,7 +1,6 @@
 
 /* Import types correctly from their definition sources */
-import { GameState } from './state';
-import { Card } from './cards';
+import { GameState, Card } from '../types';
 import { getLegalMoves } from './legalMoves';
 import { getPriorityIndex, getRankValue } from './cards';
 
